@@ -131,14 +131,40 @@ function isTableUpcoming(table, now = new Date()) {
 }
 
 function generateInviteCodeWord() {
-  // Short, readable code word (no ambiguous chars)
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const len = 6;
-  let out = "";
-  for (let i = 0; i < len; i++) {
-    out += alphabet[Math.floor(Math.random() * alphabet.length)];
-  }
-  return out;
+  // Funny, friendly code words (so it feels like an actual secret phrase)
+  const adjectives = [
+    "Snack",
+    "Meme",
+    "HotTake",
+    "Snack",
+    "Lunch",
+    "Ramen",
+    "MainCharacter",
+    "Coffee",
+    "Book",
+    "Chat",
+    "Vibe",
+    "Cozy",
+    "Campus",
+  ];
+
+  const nouns = [
+    "Wizard",
+    "Captain",
+    "Legend",
+    "Buddy",
+    "Boss",
+    "Ace",
+    "Pilot",
+    "Ninja",
+    "Guardian",
+    "Mayor",
+    "Ruler",
+    "Dealer",
+  ];
+
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  return `${pick(adjectives)}${pick(nouns)}`;
 }
 
 function stripBobstPrefix(location) {
