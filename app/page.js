@@ -922,7 +922,10 @@ export default function HomePage() {
       {status ? (
         <div className={`topNotice ${blinkBanner ? "blink" : ""}`}>{status}</div>
       ) : null}
-      <div className="collideVisual" aria-hidden="true">
+      <div className="collideVisual">
+        <div className="collideQuoteBg">
+          "Natural collisions happen when we are sharing food and eating together, and this natural collision turns into lifelong friendships."
+        </div>
         <div className="ball left" />
         <div className="ball right" />
       </div>
@@ -1207,13 +1210,6 @@ export default function HomePage() {
             })}
           </div>
         </div>
-      </section>
-
-      <section className="section">
-        <p className="quoteLine">
-          "Natural collisions happen when we are sharing food and eating
-          together, and this natural collision turns into lifelong friendships."
-        </p>
       </section>
 
       <section className="section" ref={feedbackSectionRef}>
