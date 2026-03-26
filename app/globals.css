@@ -137,6 +137,12 @@ body::before {
   background: #ffffff;
   font-size: 0.88rem;
   font-weight: 600;
+  white-space: nowrap;
+}
+
+.pill svg {
+  vertical-align: -3px;
+  color: #111111;
 }
 
 .miniStatus {
@@ -196,7 +202,13 @@ body::before {
   font-size: 0.88rem;
   font-weight: 700;
   padding: 9px 12px;
-  margin-bottom: 10px;
+  margin-bottom: 0;
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(720px, 92vw);
+  z-index: 50;
 }
 
 .topNotice.blink {
@@ -227,25 +239,28 @@ body::before {
 
 .ball.left {
   background: #a9d8ff;
+  left: 0;
+  top: 2px;
   animation: collideLeft 2.2s ease-in-out infinite;
 }
 
 .ball.right {
   background: #ffcf9d;
   right: 0;
+  top: 2px;
   animation: collideRight 2.2s ease-in-out infinite;
 }
 
 @keyframes collideLeft {
-  0% { left: 0; }
-  45% { left: calc(50% - 14px); }
+  0% { left: 0; transform: scale(1); }
+  45% { left: calc(50% - 14px); transform: scale(1.08); }
   50% { left: calc(50% - 12px); transform: scale(1.12); }
   100% { left: 0; transform: scale(1); }
 }
 
 @keyframes collideRight {
-  0% { right: 0; }
-  45% { right: calc(50% - 14px); }
+  0% { right: 0; transform: scale(1); }
+  45% { right: calc(50% - 14px); transform: scale(1.08); }
   50% { right: calc(50% - 12px); transform: scale(1.12); }
   100% { right: 0; transform: scale(1); }
 }
@@ -377,7 +392,8 @@ textarea {
 .micro {
   margin: 0;
   font-size: 0.82rem;
-  color: var(--muted);
+  color: #111111;
+  font-weight: 900;
 }
 
 .status {
@@ -408,9 +424,50 @@ textarea {
 }
 
 .tableCard p {
-  margin: 8px 0;
+  margin: 6px 0;
   color: var(--muted);
   font-size: 0.92rem;
+}
+
+.tableCard .micro {
+  margin: 2px 0;
+  font-size: 0.82rem;
+  font-weight: 900;
+  color: #111111;
+  line-height: 1.2;
+}
+
+/* Keep a bit more space between the 2nd line and the Join button */
+.tableCard .micro:last-of-type {
+  margin-bottom: 10px;
+}
+
+.membersCompact {
+  margin-top: 10px;
+  border-top: 1px dashed #d9d2c2;
+  padding-top: 8px;
+}
+
+.membersToggleBtn {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.memberDetails {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #ece7dc;
+}
+
+.memberLine {
+  margin: 4px 0;
+  font-size: 0.84rem;
+  color: var(--muted);
 }
 
 .tableTop {
@@ -425,7 +482,7 @@ textarea {
   border-radius: 999px;
   padding: 2px 10px;
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 900;
   white-space: nowrap;
 }
 
@@ -462,6 +519,26 @@ textarea {
   align-items: center;
   gap: 8px;
   margin-bottom: 2px;
+  flex-wrap: nowrap;
+}
+
+.datePickerInline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.calIcon {
+  font-size: 0.95rem;
+}
+
+.datePickerInline input[type="date"] {
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  padding: 6px 8px;
+  font: inherit;
+  background: #fff;
 }
 
 .helpBtn {
@@ -582,8 +659,15 @@ textarea {
 .metric {
   border: 2px solid var(--line);
   border-radius: 14px;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.92);
   padding: 14px;
+  box-shadow: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.metric::after {
+  content: none;
 }
 
 .metric strong {
@@ -595,6 +679,19 @@ textarea {
 .metric span {
   font-size: 0.9rem;
   color: var(--muted);
+}
+
+.metricIcon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid #d8d1c3;
+  background: #fff7eb;
+  margin-bottom: 8px;
+  font-size: 1rem;
+  box-shadow: none;
 }
 
 footer {

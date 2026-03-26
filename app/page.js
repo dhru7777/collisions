@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getFirebaseServices } from "../lib/firebase";
 
 const LOCATION_OPTIONS = [
@@ -121,14 +121,35 @@ function createGoogleCalendarLink({ topic, dateIso, slotId, location, details })
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
-function isTableUpcoming(table) {
+function isTableUpcoming(table, now = new Date()) {
   if (!table.meetingDate || !table.slotId) return true;
   const slot = getSlotById(table.slotId);
   if (!slot) return true;
-  const now = new Date();
   const meeting = new Date(`${table.meetingDate}T00:00:00`);
   meeting.setMinutes(slot.endMinutes);
   return meeting.getTime() >= now.getTime();
+}
+
+function generateInviteCodeWord() {
+  // Short, readable code word (no ambiguous chars)
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const len = 6;
+  let out = "";
+  for (let i = 0; i < len; i++) {
+    out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return out;
+}
+
+function stripBobstPrefix(location) {
+  const s = String(location || "");
+  return s.replace(/^Bobst\s*-\s*/i, "").trim();
+}
+
+function minimalSlotLabel(slotLabel) {
+  const s = String(slotLabel || "");
+  // Removes "(Lunch)" / "(Dinner)" parts while keeping the time range.
+  return s.replace(/\s*\(.*?\)\s*$/, "").trim();
 }
 
 export default function HomePage() {
@@ -142,8 +163,12 @@ export default function HomePage() {
   const [authReady, setAuthReady] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [tables, setTables] = useState([]);
+  const [nowTs, setNowTs] = useState(() => new Date());
+  const [joinDate, setJoinDate] = useState(() => getTodayIsoDate());
+  const [feedbackRatings, setFeedbackRatings] = useState([]);
   const [joinBusyId, setJoinBusyId] = useState("");
   const [activeJoinTableId, setActiveJoinTableId] = useState("");
+  const [expandedMembersTableId, setExpandedMembersTableId] = useState("");
   const [joinForm, setJoinForm] = useState({
     email: "",
     alias: "",
@@ -166,6 +191,11 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    const id = window.setInterval(() => setNowTs(new Date()), 30000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
     if (!status) return;
     const entry = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -179,7 +209,12 @@ export default function HomePage() {
     });
     setBlinkBanner(true);
     const timer = window.setTimeout(() => setBlinkBanner(false), 1800);
-    return () => window.clearTimeout(timer);
+    // Auto-clear so the page goes back to normal after a moment
+    const clearTimer = window.setTimeout(() => setStatus(""), 3200);
+    return () => {
+      window.clearTimeout(timer);
+      window.clearTimeout(clearTimer);
+    };
   }, [status]);
 
   useEffect(() => {
@@ -233,7 +268,7 @@ export default function HomePage() {
       const nextTables = snapshot.docs.map((tableDoc) => ({
         id: tableDoc.id,
         ...tableDoc.data(),
-      })).filter(isTableUpcoming);
+      }));
 
       nextTables.sort((a, b) => {
         const aTs = a.createdAt?.seconds || 0;
@@ -244,11 +279,87 @@ export default function HomePage() {
       setTables(nextTables);
     });
 
+    const unsubFeedback = onSnapshot(collection(db, "feedback"), (snapshot) => {
+      const ratings = snapshot.docs
+        .map((docItem) => Number(docItem.data()?.rating))
+        .filter((value) => Number.isFinite(value) && value >= 1 && value <= 5);
+      setFeedbackRatings(ratings);
+    });
+
     return () => {
       unsubAuth();
       unsubTables();
+      unsubFeedback();
     };
   }, []);
+
+  const upcomingTables = useMemo(
+    () => tables.filter((t) => isTableUpcoming(t, nowTs)),
+    [tables, nowTs]
+  );
+
+  const joinTables = useMemo(() => {
+    return upcomingTables.filter((t) => {
+      const meetingDate = t.meetingDate || getTodayIsoDate();
+      return meetingDate === joinDate;
+    });
+  }, [upcomingTables, joinDate]);
+
+  const liveMetrics = useMemo(() => {
+    const uniqueParticipants = new Set();
+    const tableCountByMonth = new Date();
+    const currentMonth = tableCountByMonth.getMonth();
+    const currentYear = tableCountByMonth.getFullYear();
+
+    const participationCountByUser = new Map();
+    let tablesMatchedThisMonth = 0;
+
+    upcomingTables.forEach((table) => {
+      const createdAt = table.createdAt?.seconds
+        ? new Date(table.createdAt.seconds * 1000)
+        : null;
+      if (
+        createdAt &&
+        createdAt.getMonth() === currentMonth &&
+        createdAt.getFullYear() === currentYear
+      ) {
+        tablesMatchedThisMonth += 1;
+      }
+
+      const attendees = Array.isArray(table.attendees) ? table.attendees : [];
+      attendees.forEach((attendee) => {
+        const key = attendee.uid || attendee.email;
+        if (!key) return;
+        uniqueParticipants.add(key);
+        participationCountByUser.set(
+          key,
+          (participationCountByUser.get(key) || 0) + 1
+        );
+      });
+    });
+
+    const totalParticipants = uniqueParticipants.size;
+    const returners = Array.from(participationCountByUser.values()).filter(
+      (count) => count > 1
+    ).length;
+    const returnRate = totalParticipants
+      ? Math.round((returners / totalParticipants) * 100)
+      : 0;
+
+    const ratingAverage = feedbackRatings.length
+      ? (
+          feedbackRatings.reduce((sum, item) => sum + item, 0) /
+          feedbackRatings.length
+        ).toFixed(1)
+      : "0.0";
+
+    return {
+      uniqueSignups: totalParticipants,
+      tablesMatchedThisMonth,
+      returnRate,
+      ratingAverage,
+    };
+  }, [tables, feedbackRatings]);
 
   useEffect(() => {
     if (!authReady || !currentUser) {
@@ -268,7 +379,7 @@ export default function HomePage() {
     createTableInFirestore(draft, currentUser)
       .then(() => {
         window.localStorage.removeItem(DRAFT_KEY);
-        setStatus("Table confirmed and published after email verification.");
+        setStatus("Invite code word sent to your email.");
       })
       .catch((error) => {
         console.error(error);
@@ -291,17 +402,41 @@ export default function HomePage() {
       return;
     }
 
-    joinTableInFirestore(joinDraft.tableId, joinDraft.alias, joinDraft.note, currentUser)
-      .then(() => {
+    (async () => {
+      try {
+        const joinResult = await joinTableInFirestore(
+          joinDraft.tableId,
+          joinDraft.alias,
+          joinDraft.note,
+          currentUser
+        );
+
+        if (joinResult?.joined) {
+          await queueConfirmationEmail(currentUser.email, {
+            calendarLocation: "NYU Bobst Library",
+            inviteCode: joinResult.inviteCode,
+            topic: joinDraft.topic,
+            meetingDate: joinDraft.meetingDate,
+            slotId: joinDraft.slotId,
+            slotLabel: joinDraft.slotLabel,
+            location: joinDraft.location,
+            details: `You joined a table.`,
+          });
+          setStatus("Invite code word sent to your email.");
+        } else if (joinResult?.reason === "already_joined") {
+          setStatus("You are already on this table.");
+        } else {
+          setStatus("Join processed.");
+        }
+
         window.localStorage.removeItem(JOIN_DRAFT_KEY);
-        setStatus("Profile verified and table joined.");
         setActiveJoinTableId("");
         setJoinForm({ email: "", alias: "", note: "" });
-      })
-      .catch((error) => {
+      } catch (error) {
         console.error(error);
         setStatus(error.message || "Verified, but joining the table failed.");
-      });
+      }
+    })();
   }, [authReady, currentUser]);
 
   const getOpenSeats = (table) => {
@@ -329,21 +464,23 @@ export default function HomePage() {
       topic: payload.topic,
       dateIso: payload.meetingDate,
       slotId: payload.slotId,
-      location: payload.location,
-      details: payload.details,
+      location: payload.calendarLocation || payload.location,
+      details: `${payload.details}\n\nCode word: ${payload.inviteCode}`,
     });
     if (!calendarLink) return;
 
     await addDoc(collection(db, "mail"), {
       to: [toEmail],
       message: {
-        subject: `Collisions confirmed: ${payload.topic}`,
+        subject: `Collisions invite code: ${payload.topic}`,
         text:
           `Your collision is confirmed.\n\n` +
           `Topic: ${payload.topic}\n` +
           `Date: ${payload.meetingDate}\n` +
           `Slot: ${payload.slotLabel}\n` +
           `Location: ${payload.location}\n\n` +
+          `Code word: ${payload.inviteCode}\n\n` +
+          `Regards\nTeam Collisions\n\n` +
           `Add to Google Calendar:\n${calendarLink}`,
         html:
           `<p>Your collision is confirmed.</p>` +
@@ -351,6 +488,8 @@ export default function HomePage() {
           `<strong>Date:</strong> ${payload.meetingDate}<br/>` +
           `<strong>Slot:</strong> ${payload.slotLabel}<br/>` +
           `<strong>Location:</strong> ${payload.location}</p>` +
+          `<p><strong>Code word:</strong> ${payload.inviteCode}</p>` +
+          `<p>Regards<br/>Team Collisions</p>` +
           `<p><a href="${calendarLink}">Add to Google Calendar</a></p>`,
       },
     });
@@ -361,6 +500,7 @@ export default function HomePage() {
     const { db, collection, addDoc, serverTimestamp } = services;
     const hostAnonName = String(payload.hostAnonName || "").trim();
     const maxSeats = Number(payload.maxSeats);
+    const inviteCode = generateInviteCodeWord();
 
     const slot = getSlotById(payload.slotId);
     const slotLabel = slot ? slot.label : payload.slotId;
@@ -375,6 +515,7 @@ export default function HomePage() {
       hostAnonName,
       hostUid: user.uid,
       hostEmail: user.email,
+      inviteCode,
       attendees: [
         {
           uid: user.uid,
@@ -393,6 +534,8 @@ export default function HomePage() {
       slotId: payload.slotId,
       slotLabel,
       location: payload.location,
+      calendarLocation: "NYU Bobst Library",
+      inviteCode,
       details: "Host confirmation for your collision table.",
     });
   };
@@ -451,7 +594,7 @@ export default function HomePage() {
     try {
       if (currentUser?.email === email) {
         await createTableInFirestore(payload, currentUser);
-        setStatus("Table created and confirmed.");
+        setStatus("Invite code word sent to your email.");
         formElement.reset();
         return;
       }
@@ -482,28 +625,52 @@ export default function HomePage() {
       const attendees = Array.isArray(data.attendees) ? data.attendees : [];
       const alreadyJoined = attendees.some((attendee) => attendee.uid === user.uid);
       if (alreadyJoined) {
-        return { joined: false, reason: "already_joined" };
+        return {
+          joined: false,
+          reason: "already_joined",
+          inviteCode: data.inviteCode || "",
+          topic: data.topic || "",
+          meetingDate: data.meetingDate || "",
+          slotId: data.slotId || "",
+          slotLabel: data.slotLabel || "",
+          location: data.location || "",
+        };
       }
 
       if (attendees.length >= data.maxSeats) {
         throw new Error("Table is full.");
       }
 
-      const nextAttendees = [
-        ...attendees,
-        {
-          uid: user.uid,
-          email: user.email,
-          displayName: alias || "Anonymous",
-          note: note || "",
-          isHost: false,
-        },
-      ];
+      let inviteCode = data.inviteCode || "";
+      const updates = {
+        attendees: [
+          ...attendees,
+          {
+            uid: user.uid,
+            email: user.email,
+            displayName: alias || "Anonymous",
+            note: note || "",
+            isHost: false,
+          },
+        ],
+      };
 
-      transaction.update(tableRef, {
-        attendees: nextAttendees,
-      });
-      return { joined: true };
+      if (!inviteCode) {
+        inviteCode = generateInviteCodeWord();
+        updates.inviteCode = inviteCode;
+      }
+
+      transaction.update(tableRef, updates);
+
+      return {
+        joined: true,
+        inviteCode,
+        topic: data.topic || "",
+        meetingDate: data.meetingDate || "",
+        slotId: data.slotId || "",
+        slotLabel: data.slotLabel || "",
+        location: data.location || "",
+      };
     });
   };
 
@@ -529,7 +696,17 @@ export default function HomePage() {
     if (!currentUser || currentUser.email !== email) {
       window.localStorage.setItem(
         JOIN_DRAFT_KEY,
-        JSON.stringify({ tableId: table.id, alias, note, email })
+        JSON.stringify({
+          tableId: table.id,
+          alias,
+          note,
+          email,
+          topic: table.topic,
+          meetingDate: table.meetingDate || getTodayIsoDate(),
+          slotId: table.slotId,
+          slotLabel: table.slotLabel || table.slotId || "30-minute slot",
+          location: table.location || "Bobst Library",
+        })
       );
       try {
         await sendVerificationLink(email);
@@ -557,9 +734,11 @@ export default function HomePage() {
           slotId: table.slotId,
           slotLabel: table.slotLabel || table.slotId || "30-minute slot",
           location: table.location || "Bobst Library",
+          calendarLocation: "NYU Bobst Library",
+          inviteCode: joinResult.inviteCode,
           details: `You joined a table with note: ${note}`,
         });
-        setStatus("You joined the table.");
+        setStatus("Invite code word sent to your email.");
       } else if (joinResult?.reason === "already_joined") {
         setStatus("You are already on this table.");
       } else {
@@ -660,7 +839,28 @@ export default function HomePage() {
       <div className="topbar">
         <div className="brand">collisions</div>
         <div className="topbarRight">
-          <div className="pill">NYU Bobst Library</div>
+          <div className="pill">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
+            >
+              <path
+                d="M12 21s7-4.5 7-11a7 7 0 1 0-14 0c0 6.5 7 11 7 11Z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M12 10.5a2.3 2.3 0 1 0 0-4.6 2.3 2.3 0 0 0 0 4.6Z"
+                fill="currentColor"
+              />
+            </svg>
+            &nbsp;NYU Bobst
+          </div>
           <div className="miniStatus">
             <span className={`dot ${currentUser ? "ok" : "warn"}`} />
             <span className="miniText">{currentUser ? "Verified" : "Unverified"}</span>
@@ -822,7 +1022,7 @@ export default function HomePage() {
 
         <div>
           <div className="titleRow">
-            <h2>Join existing table</h2>
+              <h2>Join the existing table</h2>
             <button
               type="button"
               className="helpBtn"
@@ -831,6 +1031,15 @@ export default function HomePage() {
             >
               ?
             </button>
+              <div className="datePickerInline">
+                <input
+                  type="date"
+                  value={joinDate}
+                  min={getTodayIsoDate()}
+                  onChange={(e) => setJoinDate(e.target.value)}
+                  aria-label="Select date to view tables"
+                />
+              </div>
           </div>
           {showJoinHelp ? (
             <p className="section-note helpNote">
@@ -839,13 +1048,16 @@ export default function HomePage() {
             </p>
           ) : null}
           <div className="tableList">
-            {tables.length === 0 ? (
+            {joinTables.length === 0 ? (
               <div className="tableCard">No confirmed tables yet.</div>
             ) : null}
-            {tables.map((table) => {
+            {joinTables.map((table) => {
               const openSeats = getOpenSeats(table);
               const isFull = openSeats === 0;
               const attendees = Array.isArray(table.attendees) ? table.attendees : [];
+              const hostAttendee = attendees.find((a) => a.isHost) || null;
+              const hostName =
+                hostAttendee?.displayName || table.hostAnonName || "Host";
               const isAlreadyJoined = currentUser
                 ? attendees.some((attendee) => attendee.uid === currentUser.uid)
                 : false;
@@ -857,20 +1069,21 @@ export default function HomePage() {
                       {isFull ? "Full" : `${openSeats} seat(s) open`}
                     </span>
                   </div>
-                  <p>
-                    Host: {table.hostAnonName || "Host"} | Seats:{" "}
-                    {attendees.length}/{table.maxSeats}
-                  </p>
-                  <p>
-                    {table.meetingDate || "Today"} | {table.location} |{" "}
-                    {table.slotLabel || table.slot || table.slotId || "30-minute slot"}
+                  <p className="micro">Host: {hostName}</p>
+                  <p className="micro">
+                    {stripBobstPrefix(table.location)} |{" "}
+                    {minimalSlotLabel(
+                      table.slotLabel || table.slot || table.slotId || "30-minute slot"
+                    )}
                   </p>
                   <button
                     className="cta"
                     type="button"
                     disabled={isFull || joinBusyId === table.id || isAlreadyJoined}
                     onClick={() => {
-                      setActiveJoinTableId(table.id);
+                      setActiveJoinTableId((prev) =>
+                        prev === table.id ? "" : table.id
+                      );
                       setJoinForm((prev) => ({
                         ...prev,
                         email: currentUser?.email || prev.email,
@@ -934,43 +1147,38 @@ export default function HomePage() {
                       </button>
                     </form>
                   ) : null}
-                  <div className="memberList">
-                    {attendees.map((attendee, index) => (
-                        <p key={`${attendee.uid || "member"}-${index}`}>
-                          {attendee.displayName || "Anonymous"}
-                          {attendee.note ? ` - ${attendee.note}` : ""}
-                          {attendee.isHost ? " (host)" : ""}
-                        </p>
-                      ))}
-                  </div>
+                  {activeJoinTableId === table.id ? null : (
+                    <div className="membersCompact">
+                      <button
+                        type="button"
+                        className="membersToggleBtn"
+                        onClick={() =>
+                          setExpandedMembersTableId((prev) =>
+                            prev === table.id ? "" : table.id
+                          )
+                        }
+                      >
+                        Members ({attendees.length})
+                      </button>
+                      {expandedMembersTableId === table.id ? (
+                        <div className="memberDetails">
+                          {attendees.map((attendee, index) => (
+                            <p
+                              key={`${attendee.uid || "member"}-${index}`}
+                              className="memberLine"
+                            >
+                              {attendee.displayName || "Anonymous"}
+                              {attendee.isHost ? " (host)" : ""}
+                              {attendee.note ? ` - ${attendee.note}` : ""}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
                 </div>
               );
             })}
-          </div>
-        </div>
-      </section>
-
-      <section className="section">
-        <h2>Collisions in numbers</h2>
-        <p className="section-note">
-          Early signs of student demand and repeat engagement.
-        </p>
-        <div className="metrics">
-          <div className="metric">
-            <strong>1,940+</strong>
-            <span>NYU signups</span>
-          </div>
-          <div className="metric">
-            <strong>640</strong>
-            <span>Tables matched this month</span>
-          </div>
-          <div className="metric">
-            <strong>84%</strong>
-            <span>Participants who returned</span>
-          </div>
-          <div className="metric">
-            <strong>4.8/5</strong>
-            <span>Average meetup rating</span>
           </div>
         </div>
       </section>
