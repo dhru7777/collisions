@@ -584,6 +584,14 @@ textarea {
   .titleRow {
     align-items: flex-start;
   }
+
+  /* Mobile-only: ensure header icon orientation stays correct. */
+  .pill svg {
+    transform: rotate(180deg) !important;
+  }
+  .bellBtn {
+    transform: none !important;
+  }
 }
 
 .quoteLine {
