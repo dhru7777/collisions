@@ -933,11 +933,11 @@ export default function HomePage() {
       <section className="section split">
         <div>
           <div className="titleRow">
-            <h2>Create a table</h2>
+            <h2>Start a Collision</h2>
             <button
               type="button"
               className="helpBtn"
-              aria-label="Create table help"
+              aria-label="Start a collision help"
               onClick={() => setShowCreateHelp((prev) => !prev)}
             >
               ?
@@ -1044,18 +1044,18 @@ export default function HomePage() {
               </select>
             </div>
             <button className="cta" type="submit">
-              Create table
+              Start collision
             </button>
           </form>
         </div>
 
         <div>
           <div className="titleRow">
-              <h2>Join the existing table</h2>
+              <h2>Find your Collision</h2>
             <button
               type="button"
               className="helpBtn"
-              aria-label="Join table help"
+              aria-label="Find your collision help"
               onClick={() => setShowJoinHelp((prev) => !prev)}
             >
               ?
@@ -1125,7 +1125,7 @@ export default function HomePage() {
                       ? "Already joined"
                       : joinBusyId === table.id
                       ? "Joining..."
-                      : "Join table"}
+                      : "Join collision"}
                   </button>
                   {isAlreadyJoined ? (
                     <p className="micro">You are already part of this table.</p>
