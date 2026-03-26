@@ -442,6 +442,13 @@ textarea {
   margin-bottom: 10px;
 }
 
+/* When "Already joined" renders a second .micro after the button,
+   :last-of-type no longer applies to the date/location line.
+   This ensures consistent gap above the Join/Already joined button. */
+.tableCard p.micro + button.cta {
+  margin-top: 10px;
+}
+
 .membersCompact {
   margin-top: 10px;
   border-top: 1px dashed #d9d2c2;
@@ -563,6 +570,20 @@ textarea {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+@media (max-width: 520px) {
+  .inlineFields {
+    grid-template-columns: 1fr;
+  }
+
+  .split {
+    grid-template-columns: 1fr;
+  }
+
+  .titleRow {
+    align-items: flex-start;
+  }
 }
 
 .quoteLine {
