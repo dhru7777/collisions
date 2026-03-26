@@ -933,11 +933,11 @@ export default function HomePage() {
       <section className="section split">
         <div>
           <div className="titleRow">
-            <h2>Start a Collision</h2>
+            <h2>Host a Collision</h2>
             <button
               type="button"
               className="helpBtn"
-              aria-label="Start a collision help"
+              aria-label="Host a collision help"
               onClick={() => setShowCreateHelp((prev) => !prev)}
             >
               ?
@@ -1044,7 +1044,7 @@ export default function HomePage() {
               </select>
             </div>
             <button className="cta" type="submit">
-              Start collision
+              Host collision
             </button>
           </form>
         </div>
