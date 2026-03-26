@@ -567,6 +567,8 @@ textarea {
   padding: 6px 8px;
   font: inherit;
   background: #fff;
+  width: auto;
+  margin-top: 0;
 }
 
 .helpBtn {
@@ -602,16 +604,61 @@ textarea {
     grid-template-columns: 1fr;
   }
 
+  .topbarRight {
+    flex-wrap: nowrap;
+    gap: 6px;
+    overflow: hidden; /* keep everything on one line */
+  }
+
   .titleRow {
     align-items: flex-start;
   }
 
   /* Mobile-only: ensure header icon orientation stays correct. */
+  .pill {
+    padding: 6px 10px;
+    font-size: 0.82rem;
+    max-width: 152px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .miniStatus {
+    padding: 5px 8px;
+    gap: 6px;
+    min-height: 32px;
+  }
+
+  .miniText {
+    max-width: 56px;
+    font-size: 0.74rem;
+  }
+
+  .bellBtn {
+    width: 30px;
+    height: 30px;
+  }
+
   .pill svg {
     transform: rotate(180deg) !important;
   }
   .bellBtn {
     transform: none !important;
+  }
+
+  /* Quote strip: increase height so multi-line quote isn't clipped */
+  .collideVisual {
+    height: 76px;
+  }
+
+  .collideQuoteBg {
+    font-size: 0.86rem;
+    line-height: 1.2;
+    padding: 0 10px;
+  }
+
+  .ball {
+    top: 30px;
   }
 }
 
