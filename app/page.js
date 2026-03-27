@@ -94,6 +94,11 @@ function getFriendlyFirebaseError(error, fallbackMessage) {
   return error?.message || fallbackMessage;
 }
 
+/** Shown whenever we tell the user we sent mail (verification link or invite). */
+function statusAfterEmailSent(message) {
+  return `${message} Check your inbox and spam or junk folder if you do not see it.`;
+}
+
 function formatGoogleDate(dateIso, minutesFromMidnight) {
   const date = new Date(`${dateIso}T00:00:00`);
   date.setMinutes(minutesFromMidnight);
@@ -405,7 +410,7 @@ export default function HomePage() {
     createTableInFirestore(draft, currentUser)
       .then(() => {
         window.localStorage.removeItem(DRAFT_KEY);
-        setStatus("Invite code word sent to your email.");
+        setStatus(statusAfterEmailSent("Invite code word sent to your email."));
       })
       .catch((error) => {
         console.error(error);
@@ -448,7 +453,7 @@ export default function HomePage() {
             location: joinDraft.location,
             details: `You joined a table.`,
           });
-          setStatus("Invite code word sent to your email.");
+          setStatus(statusAfterEmailSent("Invite code word sent to your email."));
         } else if (joinResult?.reason === "already_joined") {
           setStatus("You are already on this table.");
         } else {
@@ -620,7 +625,7 @@ export default function HomePage() {
     try {
       if (currentUser?.email === email) {
         await createTableInFirestore(payload, currentUser);
-        setStatus("Invite code word sent to your email.");
+        setStatus(statusAfterEmailSent("Invite code word sent to your email."));
         formElement.reset();
         return;
       }
@@ -628,7 +633,9 @@ export default function HomePage() {
       window.localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
       await sendVerificationLink(email);
       setStatus(
-        "Verification email sent. Open the link in your mail to confirm identity and publish the table."
+        statusAfterEmailSent(
+          "Verification email sent. Open the link in your mail to confirm identity and publish the table."
+        )
       );
     } catch (error) {
       console.error(error);
@@ -736,7 +743,11 @@ export default function HomePage() {
       );
       try {
         await sendVerificationLink(email);
-        setStatus("Verification email sent. Click the link to complete join.");
+        setStatus(
+          statusAfterEmailSent(
+            "Verification email sent. Click the link to complete join."
+          )
+        );
       } catch (error) {
         console.error(error);
       setStatus(getFriendlyFirebaseError(error, "Could not send verification email."));
@@ -764,7 +775,7 @@ export default function HomePage() {
           inviteCode: joinResult.inviteCode,
           details: `You joined a table with note: ${note}`,
         });
-        setStatus("Invite code word sent to your email.");
+        setStatus(statusAfterEmailSent("Invite code word sent to your email."));
       } else if (joinResult?.reason === "already_joined") {
         setStatus("You are already on this table.");
       } else {
